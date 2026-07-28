@@ -1,0 +1,243 @@
+﻿<!doctype html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>📈 Profit / Target Calculator + RR (My Copy Format)</title>
+<style>
+  body{font-family:'Segoe UI',Tahoma,Arial; background:#fff; color:#222; padding:18px;}
+  input,button{padding:10px 12px; margin:8px 6px; border-radius:10px; border:1px solid #bbb; background:#f7f7f7; color:#111;}
+  input{min-width:180px; text-align:center; font-size:16px;}
+  .box{background:#fafafa; padding:16px; border-radius:12px; max-width:1000px; margin:auto; box-shadow:0 0 12px rgba(0,0,0,.1);}
+  .row{display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-bottom:10px; justify-content:center;}
+  .res{background:#fff; padding:12px; border-radius:10px; margin-top:12px; border:1px solid #ddd;}
+  button{cursor:pointer; font-size:16px; font-weight:700;}
+  #calc{background:#0077ff; color:#fff; border:none;}
+  .copy-long{background:#0a8a3a; color:#fff; border:none;}
+  .copy-short{background:#d83a2e; color:#fff; border:none;}
+  h2{text-align:center; color:#0077ff; font-size:22px; margin-top:0;}
+  table{width:100%; border-collapse:collapse; text-align:center; font-size:15px; margin-top:10px;}
+  th,td{padding:8px 6px; border:1px solid #ddd;}
+  th{background:#f2f2f2;}
+  .ok{color:#078600; font-weight:bold;}
+  .mid{color:#ff8c00; font-weight:bold;}
+  .entry-line{text-align:center; font-weight:bold; margin-bottom:8px; font-size:18px;}
+  .entry-label{color:#0077ff;}
+  .entry-num{color:#e60023;}
+  .stop-line{text-align:center; font-size:18px; font-weight:bold; color:#d4a017; margin-top:10px;}
+  .stop-num{color:#0a66ff;}
+  .stop-pct{color:#e60023;}
+  .long-label{color:#078600;}
+  .short-label{color:#e60023;}
+  .made-in{text-align:center; font-size:17px; color:#0a7f5a; font-weight:700; margin-top:10px;}
+  .tg-btn{display:inline-block; padding:10px 18px; background:#0088cc; color:#fff; border-radius:10px; text-decoration:none; font-weight:700;}
+  .tg-btn:hover{opacity:.92}
+
+  /* ===== تحسينات للموبايل ===== */
+  @media (max-width: 640px){
+    body{padding:12px;}
+    .box{padding:14px; max-width: 100%;}
+    .row{flex-direction:column; align-items:stretch;}
+    input{min-width:unset; width:100%; font-size:17px; padding:12px;}
+    button{width:100%; font-size:18px; padding:12px;}
+    h2{font-size:20px;}
+    table{font-size:16px;}
+    .res{padding:14px;}
+  }
+</style>
+</head>
+<body dir="rtl">
+  <div class="box">
+    <h2>⚡ حاسبة الأهداف ووقف الخسارة + RR ⚡</h2>
+
+    <!-- السطر 1: العملة فقط -->
+    <div class="row">
+      <label>العملة:</label>
+      <input id="pair" type="text" placeholder=""/>
+    </div>
+
+    <!-- السطر 2: سعر الدخول ثم الخطوة -->
+    <div class="row">
+      <label>سعر الدخول:</label>
+      <input id="entry" type="number" step="0.01" placeholder=""/>
+      <label>الخطوة %:</label>
+      <input id="step" type="number" value="2" step="0.01"/>
+    </div>
+
+    <!-- السطر 3: عدد الأهداف ثم نسبة الاستوب -->
+    <div class="row">
+      <label>عدد الأهداف:</label>
+      <input id="n" type="number" value="4" min="1" max="20"/>
+      <label>نسبة الاستوب %:</label>
+      <input id="stopPercent" type="number" step="0.01" value="4" style="width:120px"/>
+    </div>
+
+    <!-- السطر 4: الأزرار -->
+    <div class="row">
+      <button id="calc">احسب</button>
+      <button id="copyLong" class="copy-long">نسخ لونج</button>
+      <button id="copyShort" class="copy-short">نسخ شورت</button>
+    </div>
+
+    <div id="out" class="res">⬅️ أدخل القيم واضغط «احسب» أو اضغط Enter في أي خانة.</div>
+  </div>
+
+<script>
+function fmt(x){return Number(x).toFixed(6).replace(/\.?0+$/,'');}
+function fmt2(x){return Number(x).toFixed(2).replace(/\.?0+$/,'');}
+function rrText(rewardPct,riskPct){if(!riskPct||riskPct<=0)return'—';return fmt2(rewardPct/riskPct)+':1';}
+
+const pairEl=document.getElementById('pair');
+const entryEl=document.getElementById('entry');
+const stepEl=document.getElementById('step');
+const nEl=document.getElementById('n');
+const stopEl=document.getElementById('stopPercent');
+const out=document.getElementById('out');
+const calcBtn=document.getElementById('calc');
+const copyLongBtn=document.getElementById('copyLong');
+const copyShortBtn=document.getElementById('copyShort');
+
+window.addEventListener('DOMContentLoaded', ()=>{
+  stepEl.value = '1.50';
+  stopEl.value = '6';
+});
+
+document.querySelectorAll('input').forEach(inp=>{
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){ e.preventDefault(); calcBtn.click(); }
+  });
+});
+
+let lastData = null;
+
+function normalizePair(input){
+  if(!input) return '';
+  let p = input.toUpperCase().trim();
+  p = p.replace(/^#/, '');
+  return p;
+}
+
+calcBtn.onclick=()=>{
+  const pair = normalizePair((pairEl.value||'').trim());
+  const entry=parseFloat(entryEl.value);
+  const step=parseFloat(stepEl.value);
+  const n=parseInt(nEl.value);
+  const stopP=parseFloat(stopEl.value);
+  if((!entry && entry!==0) || isNaN(step) || isNaN(n)){ alert('⚠️ رجاءً أدخل قيم صحيحة (Entry, Step, Targets)'); return; }
+
+  const stopPriceLong=(!isNaN(stopP)&&stopP>0)?entry*(1-stopP/100):null;
+  const stopPriceShort=(!isNaN(stopP)&&stopP>0)?entry*(1+stopP/100):null;
+
+  const longTargets=[], shortTargets=[], rrPerTP=[];
+  for(let i=1;i<=n;i++){
+    const pct = step*i/100;
+    longTargets.push(entry*(1+pct));
+    shortTargets.push(entry*(1-pct));
+    rrPerTP.push(rrText(step*i, stopP));
+  }
+  lastData = {pair, entry, step, n, stopP, stopPriceLong, stopPriceShort, longTargets, shortTargets, rrPerTP};
+
+  let html = `<div class="entry-line"><span class="entry-label">سعر الدخول:</span> <span class="entry-num">${fmt(entry)}</span></div>`;
+  if(stopPriceLong!==null){
+    html += `<div class="stop-line">
+      📉 وقف الخسارة (<span class="long-label">Long</span>): <span class="stop-num">${fmt(stopPriceLong)}</span> (<span class="stop-pct">${fmt2(stopP)}%</span>)
+      &nbsp;&nbsp;|&nbsp;&nbsp;
+      📈 وقف الخسارة (<span class="short-label">Short</span>): <span class="stop-num">${fmt(stopPriceShort)}</span> (<span class="stop-pct">${fmt2(stopP)}%</span>)
+    </div>`;
+  }
+
+  html += `<table><tr><th>الهدف</th><th>النسبة</th><th>سعر هدف (Long)</th><th>RR (Long)</th><th>سعر هدف (Short)</th><th>RR (Short)</th></tr>`;
+  for(let i=1;i<=n;i++){
+    const rr = (!isNaN(stopP) && stopP>0) ? rrText(step*i, stopP) : '—';
+    const rrClass = (!isNaN(stopP) && stopP>0 && step*i/stopP >= 2) ? 'ok' : 'mid';
+    html += `<tr>
+      <td>TP${i}</td>
+      <td>+${fmt2(step*i)}%</td>
+      <td>${fmt(longTargets[i-1])}</td>
+      <td class="${rrClass}">${rr}</td>
+      <td>${fmt(shortTargets[i-1])}</td>
+      <td class="${rrClass}">${rr}</td>
+    </tr>`;
+  }
+  html += `</table>`;
+
+  html += `<div class="made-in">🔥 فكرة وتصميم Crypto Sniper 🔥</div>
+  <div style="text-align:center; margin-top:8px;">
+    <a class="tg-btn" href="https://t.me/CryptoSniperChannel" target="_blank" rel="noopener">🔔 انضم لقناتنا على تيليجرام 🔔</a>
+  </div>`;
+
+  out.innerHTML = html;
+};
+
+/* ========= قوالب النسخ بصيغتك (بالضبط كما طلبت) ========= */
+function buildTemplate(direction){
+  if(!lastData){ alert('احسب الأول ثم جرّب النسخ.'); return ''; }
+  const d = lastData;
+  const isLong = direction==='long';
+  const stopPrice = isLong ? d.stopPriceLong : d.stopPriceShort;
+  const targets = isLong ? d.longTargets : d.shortTargets;
+
+  const header = '';
+  const coin = `#${(d.pair || 'MYX').toUpperCase()}`;
+  const coinLine = `🔆 Coin : ${coin}`;
+  const dirLine  = isLong ? '〽️ Direction : Long 🟢' : '📊 Direction : Short 🔴';
+  const levLine  = '⚠️ Leverage : 20x';
+  const entryLine = `⚜️ Entry : ${fmt(d.entry)}`;
+
+  // بصيغة: 🎯 Take Profit 1 : 123.45
+let tpLines = '\n🔸 Take Profits:';
+for(let i = 0; i < targets.length; i++){
+  const nums = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
+  tpLines += `\n${nums[i]} ${fmt(targets[i])}`;
+}
+
+  const slLine = stopPrice!=null ? `🚫 Stop Loss : ${fmt(stopPrice)}` : '⛔️ Stop Loss : 4%';
+
+  const support = 'VIP 👸 @QueenNoren';
+
+  const msg =
+`${header}
+
+${coinLine}
+${dirLine}
+${levLine}
+
+${entryLine}
+
+${tpLines.trimStart()}
+
+${slLine}
+
+${support}`;
+
+  return msg;
+}
+
+/* ========= وظائف النسخ المتوافقة مع الموبايل (حتى file://) ========= */
+function legacyCopy(text){
+  const tmp = document.createElement('textarea');
+  tmp.value = text;
+  tmp.style.position = 'fixed';
+  tmp.style.top = '-1000px';
+  document.body.appendChild(tmp);
+  tmp.focus();
+  tmp.select();
+  const ok = document.execCommand('copy');
+  document.body.removeChild(tmp);
+  return ok;
+}
+
+document.getElementById('copyLong').onclick = ()=>{
+  const msg = buildTemplate('long'); if(!msg) return;
+  const ok = legacyCopy(msg);
+  alert(ok ? '✅ تم نسخ صفقة لونج بصيغتك.' : '⚠️ لم يتم النسخ، انسخ يدويًا.');
+};
+
+document.getElementById('copyShort').onclick = ()=>{
+  const msg = buildTemplate('short'); if(!msg) return;
+  const ok = legacyCopy(msg);
+  alert(ok ? '✅ تم نسخ صفقة شورت بصيغتك.' : '⚠️ لم يتم النسخ، انسخ يدويًا.');
+};
+</script>
+</body>
+</html>
