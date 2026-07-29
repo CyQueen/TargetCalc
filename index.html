@@ -181,8 +181,8 @@ function buildTemplate(direction){
   const coin = `#${(d.pair || 'MYX').toUpperCase()}`;
   const coinLine = `🔆 Coin : ${coin}`;
   const dirLine  = isLong ? '〽️ Direction : Long 🟢' : '〽️ Direction : Short 🔴';
-  const levLine  = '⚠️ Leverage : 20x';
-  const entryLine = `⚜️ Entry : ${fmt(d.entry)}`;
+  const levLine  = '⚠️ Leverage : (20x)';
+  const entryLine = `⚜️ Entry :\n${fmt(d.entry)}`;
 
   // بصيغة: 🎯 Take Profit 1 : 123.45
 let tpLines = '\n🔸 Take Profits:';
